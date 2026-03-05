@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import { createClient } from "@supabase/supabase-js";
 
 // ─── SUPABASE CREDENTIALS ─────────────────────────────────────────────────────
 const SB_URL = "https://trtfxsyetkebnqhwhowh.supabase.co";
@@ -27,7 +26,6 @@ const USUARIOS = [
   { id:"redes",     nombre:"Redes",                 rol:"equipo",   area:"Redes",     avatar:"📱", color:"#9B59B6" },
   { id:"web",       nombre:"Web",                   rol:"equipo",   area:"Web",       avatar:"🌐", color:"#F5A623" },
   { id:"data",      nombre:"Data",                  rol:"equipo",   area:"Data",      avatar:"📊", color:"#0EA5E9" },
-  { id:"direccion", nombre:"Dirección",             rol:"direccion",area:"Dirección", avatar:"🎯", color:"#E84B2C" },
 ];
 
 // ─── EQUIPO INITIAL DATA ────────────────────────────────────────────────────
@@ -48,7 +46,9 @@ const AREA_CFG = {
   "Video":  { color:"#4A90C4", bg:"#EFF6FF", border:"#93C5FD", icon:"🎬" },
   "Redes":  { color:"#9B59B6", bg:"#F5F0FB", border:"#D7BDE2", icon:"📱" },
   "Web":    { color:"#F5A623", bg:"#FFFBEB", border:"#FDE68A", icon:"🌐" },
-  "Data":   { color:"#0EA5E9", bg:"#F0F9FF", border:"#BAE6FD", icon:"📊" },
+  "Data":       { color:"#0EA5E9", bg:"#F0F9FF", border:"#BAE6FD", icon:"📊" },
+  "Proyectos":  { color:"#10B981", bg:"#ECFDF5", border:"#6EE7B7", icon:"📋" },
+  "Directivos": { color:"#6366F1", bg:"#EEF2FF", border:"#C7D2FE", icon:"👔" },
 };
 
 const TIPO_CFG = {
@@ -83,7 +83,7 @@ const AREAS_EQUIPO = [
   "Comunicaciones","Fundraising","Finanzas","Eventos y Proyectos",
   "Administración Interna","Ejecutiva y Becas","Impacto Social y Apoyo Comunitario","Otro",
 ];
-const AREAS_PROD = ["Diseño","Copy","Video","Redes","Web","Data"];
+const AREAS_PROD = ["Diseño","Copy","Video","Redes","Web","Data","Proyectos","Directivos"];
 const TIPOS = Object.keys(TIPO_CFG);
 
 const tc = t => TIPO_CFG[t] || TIPO_CFG["Otras Solicitudes"];
@@ -3302,9 +3302,6 @@ function ExecutiveDashboard({ sols, equipo=[], onOpenPlatform, usuario, setUsuar
 }
 
 
-// ─── SUPABASE CLIENT ─────────────────────────────────────────────────────────
-const supabase = createClient(SB_URL, SB_KEY);
-
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
 const solToDb = (s) => ({
   id:               String(s.id),
@@ -3355,28 +3352,23 @@ export default function App() {
     if (status === "saved") syncTimer.current = setTimeout(() => setSyncStatus(null), 2000);
   }, []);
 
-  // ── Load from Supabase on mount ──────────────────────────────────
+  // ── Load from window.storage on mount ──────────────────────────────────
   useEffect(() => {
     const load = async () => {
       try {
-        const [{ data: solsData }, { data: equipoData }] = await Promise.all([
-          supabase.from("solicitudes").select("*"),
-          supabase.from("equipo").select("*"),
+        const [sr, er] = await Promise.all([
+          window.storage.get("cls_sols"),
+          window.storage.get("cls_equipo"),
         ]);
-        if (!solsData?.length && !equipoData?.length) {
-          const plain = DEMO_PLAIN();
-          await Promise.all([
-            supabase.from("solicitudes").upsert(plain.map(solToDb)),
-            supabase.from("equipo").upsert(EQUIPO_INICIAL),
-          ]);
-          setSolsRaw(plain);
-          setEquipoRaw(EQUIPO_INICIAL);
-        } else {
-          setSolsRaw((solsData || []).map(dbToSol));
-          setEquipoRaw(equipoData || EQUIPO_INICIAL);
+        setSolsRaw(sr ? JSON.parse(sr.value) : DEMO_PLAIN());
+        setEquipoRaw(er ? JSON.parse(er.value) : EQUIPO_INICIAL);
+        if (!sr) {
+          // First run — persist demo data
+          await window.storage.set("cls_sols",   JSON.stringify(DEMO_PLAIN()));
+          await window.storage.set("cls_equipo", JSON.stringify(EQUIPO_INICIAL));
         }
       } catch(e) {
-        console.warn("Supabase load failed, using demo:", e);
+        console.warn("Storage load failed, using demo:", e);
         setSolsRaw(DEMO_PLAIN());
         setEquipoRaw(EQUIPO_INICIAL);
       }
@@ -3389,17 +3381,9 @@ export default function App() {
     setSolsRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       flashSync("saving");
-      const prevMap = new Map((prev||[]).map(s => [String(s.id), s]));
-      const nextMap = new Map(next.map(s => [String(s.id), s]));
-      const deleted  = [...prevMap.keys()].filter(id => !nextMap.has(id));
-      const upserted = next.filter(s => {
-        const old = prevMap.get(String(s.id));
-        return !old || JSON.stringify(old) !== JSON.stringify(s);
-      });
-      Promise.all([
-        ...upserted.map(s => supabase.from("solicitudes").upsert(solToDb(s))),
-        ...deleted.map(id => supabase.from("solicitudes").delete().eq("id", id)),
-      ]).then(() => flashSync("saved")).catch(() => flashSync("error"));
+      window.storage.set("cls_sols", JSON.stringify(next))
+        .then(() => flashSync("saved"))
+        .catch(() => flashSync("error"));
       return next;
     });
   }, [flashSync]);
@@ -3408,17 +3392,9 @@ export default function App() {
     setEquipoRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       flashSync("saving");
-      const prevMap = new Map((prev||[]).map(m => [m.id, m]));
-      const nextMap = new Map(next.map(m => [m.id, m]));
-      const deleted  = [...prevMap.keys()].filter(id => !nextMap.has(id));
-      const upserted = next.filter(m => {
-        const old = prevMap.get(m.id);
-        return !old || JSON.stringify(old) !== JSON.stringify(m);
-      });
-      Promise.all([
-        ...upserted.map(m => supabase.from("equipo").upsert(m)),
-        ...deleted.map(id => supabase.from("equipo").delete().eq("id", id)),
-      ]).then(() => flashSync("saved")).catch(() => flashSync("error"));
+      window.storage.set("cls_equipo", JSON.stringify(next))
+        .then(() => flashSync("saved"))
+        .catch(() => flashSync("error"));
       return next;
     });
   }, [flashSync]);
