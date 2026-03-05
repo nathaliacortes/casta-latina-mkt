@@ -885,4 +885,5 @@ function ModalAgregarSubtarea({ sol, onClose, onAdd, notify }) {
             </div>
             <span style={{fontSize:12,color:esRedes?"#9B59B6":"#64748B",fontWeight:esRedes?700:400}}>📱 Esta tarea requiere confirmación de publicación en Redes</span>
           </label>
-          <label onClick={()=>setEsData(p=>!p)} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"8px 10px",background:esData?"#F0F9FF":"#F8FAFC",borderRadius:8,border:`1px solid ${e
+          <label onClick={()=>setEsData(p=>!p)} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"8px 10px",background:esData?"#F0F9FF":"#F8FAFC",borderRadius:8,border:`1px solid ${esData?"#BAE6FD":"#E2E8F0"}`}}>
+            <div style={{width:36,height:20,borderRadius:10,background:esData?"#0EA5E9":"#E2E8F0",position:"relative",
