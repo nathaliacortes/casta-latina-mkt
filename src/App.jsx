@@ -15,7 +15,7 @@ function useBreakpoint() {
   return { w, isMobile: w < 640, isTablet: w >= 640 && w < 1024, isDesktop: w >= 1024 };
 }
 
-const LOGO_URL = "/Casta_Latina_Logo_2.png";
+const LOGO_URL = "/CastaLatinaLogo2.png";
 
 // ─── USUARIOS ────────────────────────────────────────────────────────────────
 const USUARIOS = [
